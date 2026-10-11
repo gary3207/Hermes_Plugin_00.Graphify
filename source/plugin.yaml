@@ -1,0 +1,19 @@
+manifest_version: 2
+api_version: 1
+name: graphify-context
+version: 0.2.0
+description: Portable Graphify code reuse and impact context; current Profile only.
+author: Gary-Y-Lee
+license: MIT
+kind: standalone
+provides_tools: []
+provides_hooks: []
+platforms: [windows]
+tags: [graphify, obsidian, code, reuse, impact]
+config_schema:
+  vault_path:
+    type: str
+    description: Existing absolute Obsidian Vault directory; no credentials.
+  graphify_folder:
+    type: str
+    description: Safe Vault-relative Graphify folder, for example AgentData/Graphify.

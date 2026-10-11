@@ -1,0 +1,26 @@
+source/.graphify-cache/
+source/__pycache__/
+source/**/__pycache__/
+source/tmp*/
+source/test-work/
+*.graphify-tmp
+
+# Private local state and legacy deployment (never portable payload)
+source/graphify-config.json
+source/profile/
+source/runtime/
+source/plugin-data/
+source/private-evidence/
+source/release-repo/
+source/.worktrees/
+source/register-task.ps1
+source/run-discovery.pyw
+source/tmp-package-*
+Hermes_Plugin_Graphify.zip
+.env
+.env.*
+auth.json
+credentials.json
+secrets.json
+*.pem
+*.key
