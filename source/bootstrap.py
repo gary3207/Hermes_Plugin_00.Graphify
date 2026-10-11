@@ -55,8 +55,8 @@ def hermes_command(args, home, extra_env=None):
     launcher = shutil.which('hermes')
     if not launcher:
         raise RuntimeError('HERMES_LAUNCHER_NOT_FOUND')
-    env = {**os.environ, 'HERMES_HOME': str(home), 'PYTHONUTF8': '1',
-           'PYTHONIOENCODING': 'utf-8', **(extra_env or {})}
+    env = {**os.environ, **(extra_env or {}), 'HERMES_HOME': str(home),
+           'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'}
     return service.ops.command([launcher, '--profile', 'default', *args], timeout=700, env=env)
 
 

@@ -247,6 +247,23 @@ class PluginTests(unittest.TestCase):
             self.assertEqual(other.read_text(), 'untouched')
             self.assertFalse((other.parent / 'plugins').exists())
 
+    def test_native_command_cannot_override_explicit_profile_home(self):
+        from unittest.mock import patch
+        import bootstrap
+        home = Path(__file__).parent / 'test-work/scoped-home'
+        other = Path(__file__).parent / 'test-work/other-home'
+        with patch.object(bootstrap.shutil, 'which', return_value='mock-hermes.CMD'), \
+                patch.object(bootstrap.service.ops, 'command', return_value='{}') as command:
+            bootstrap.hermes_command(['graphify', 'status'], home, {
+                'HERMES_HOME': str(other), 'PYTHONUTF8': '0',
+                'PYTHONIOENCODING': 'ascii', 'GIT_TERMINAL_PROMPT': '0'})
+        self.assertEqual(command.call_count, 1)
+        environment = command.call_args.kwargs['env']
+        self.assertEqual(environment['HERMES_HOME'], str(home))
+        self.assertEqual(environment['PYTHONUTF8'], '1')
+        self.assertEqual(environment['PYTHONIOENCODING'], 'utf-8')
+        self.assertEqual(environment['GIT_TERMINAL_PROMPT'], '0')
+
     def test_native_verifier_rejects_malformed_git_sources_before_launch(self):
         import contextlib
         import io
