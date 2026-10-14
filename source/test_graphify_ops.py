@@ -7,6 +7,37 @@ from pathlib import Path
 
 
 class CacheTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows long path regression')
+    def test_long_source_paths_are_scanned_hashed_and_extracted(self):
+        import graphify_ops as ops
+        import shutil
+        work = Path(__file__).parent / 'test-work'
+        work.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir='\\\\?\\' + str(work.resolve())) as tmp:
+            root = Path(tmp[4:])
+            relative = '/'.join(['nested_' + 'x' * 35] * 6 + ['example.py'])
+            code = root / 'source' / relative
+            extended = Path('\\\\?\\' + str(code.resolve()))
+            self.assertGreater(len(str(code)), 260)
+            extended.parent.mkdir(parents=True)
+            extended.write_text('def long_path_example(): return 1\n')
+            files = ops.source_files(root, {'.py'})
+            self.assertEqual(list(files), [relative])
+            first = ops.fingerprint(files)
+            extended.write_text('def long_path_example(): return 2\n')
+            self.assertNotEqual(first, ops.fingerprint(files))
+            cfg = {'vault': str(root / 'vault'), 'runtime': str(root / 'runtime'),
+                   'extensions': ['.py'], 'graphify': shutil.which('graphify')}
+            project = {'id': 'long', 'name': 'long', 'path': str(root)}
+            meta, changed = ops.rebuild(cfg, project, {}, 'fixture')
+            self.assertTrue(changed)
+            self.assertEqual(meta['files'], 1)
+            graph = ops.load(ops.graph_path(cfg, project), {})
+            self.assertTrue(any(n.get('label') == 'long_path_example()' for n in graph['nodes']))
+            self.assertTrue(any(n.get('source_file') == relative for n in graph['nodes']))
+            self.assertTrue(any(n.get('source_file') == relative and n.get('label') == 'example.py'
+                                for n in graph['nodes']), 'staging hash leaked into file label')
+
     @unittest.skipUnless(os.name == 'nt', 'Windows junction regression')
     def test_cache_lock_and_publisher_reject_real_junctions(self):
         import graphify_ops as ops

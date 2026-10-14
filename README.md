@@ -109,6 +109,13 @@ unowned per-project graph inputs are not merged into the global graph: sync repo
 an advisory failure and retains the last good integrated graph. Linked cache,
 output and lock paths (including Windows junctions) are rejected before writes.
 
+On Windows, source scanning and reading use extended paths. Graphify 0.9.77
+normalizes away extended prefixes during extraction, so long staging paths use
+short unique aliases; source locations and file labels are restored to their
+original names. Source files are not omitted or moved. Path-based import links
+can still be missed: verify callers in the original code. This does not change
+Windows system policy or fix native Hermes dependency-installation path limits.
+
 The Python bootstrap/verifier reject shell metacharacters and control characters
 in arguments to Windows `.CMD`/`.BAT` launchers (`UNSAFE_BATCH_ARGUMENT`). Such
 project paths are not supported through that launcher; quoting or spaces alone do

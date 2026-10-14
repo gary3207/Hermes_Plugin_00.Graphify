@@ -7,8 +7,20 @@ SKIP_DIRS = {'.git', '.venv', 'venv', 'node_modules', 'vendor', '__pycache__',
              '.graphify-cache', 'test-work', 'runtime', 'cache', 'dist', 'build'}
 
 
+def io_path(path):
+    """Use Windows extended paths for I/O without changing source-relative names."""
+    path = Path(path)
+    if os.name != 'nt':
+        return path
+    absolute = os.path.abspath(path)
+    if absolute.startswith('\\\\?\\'):
+        return Path(absolute)
+    return Path('\\\\?\\UNC\\' + absolute[2:] if absolute.startswith('\\\\')
+                else '\\\\?\\' + absolute)
+
+
 def source_files(root, extensions):
-    source = Path(root) / 'source'
+    source = io_path(Path(root) / 'source')
     files = {}
 
     def contained(path):
@@ -22,7 +34,7 @@ def source_files(root, extensions):
     except FileNotFoundError:
         return files
     if (not contained(source) or not source.is_dir()
-            or not source.resolve().is_relative_to(Path(root).resolve())):
+            or not source.resolve().is_relative_to(io_path(root).resolve())):
         raise OSError('Source root is outside the scan boundary')
 
     def scan_error(error):
@@ -300,6 +312,10 @@ def rebuild(cfg, project, previous, version):
             staged_names = set()
             for relative, path in files.items():
                 staged = relative + '.py' if path.suffix.lower() == '.pyw' else relative
+                if os.name == 'nt' and len(str(staging / staged)) >= 240:
+                    # Graphify normalizes away extended prefixes; shorten only staged paths.
+                    staged = '_long_paths/' + hashlib.sha256(staged.encode('utf-8')).hexdigest() + (
+                        '.py' if path.suffix.lower() == '.pyw' else path.suffix)
                 if staged.casefold() in staged_names:
                     raise ValueError('Source staging collision; previous graph retained')
                 staged_names.add(staged.casefold())
@@ -319,6 +335,10 @@ def rebuild(cfg, project, previous, version):
                     if Path(source).is_absolute():
                         source = Path(source).relative_to(staging).as_posix()
                     item['source_file'] = aliases.get(source, source)
+                    if item.get('label') == source:
+                        item['label'] = aliases.get(source, source)
+                    elif source in aliases and item.get('label') == Path(source).name:
+                        item['label'] = Path(aliases[source]).name
             graph['extracted_sources'] = [str(path) for path in files.values()]
     if (fingerprint(source_files(root, set(cfg['extensions']))) != current
             or (source_present and not (root / 'source').is_dir())):

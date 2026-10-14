@@ -32,6 +32,7 @@ This Plugin is current-Profile-only. No scheduler, watcher, automatic Profile de
 - Source/cache/vendor/build/runtime/authentication files are excluded. Graphify extraction is code-only with one worker and no LLM semantic extraction.
 - Graphs retain project namespaces, directed and parallel relations. Equal names never fabricate cross-project dependencies. A project without supported source gets a project node, not invented code.
 - Local extraction is not guaranteed redaction: hardcoded secrets can appear in labels. Do not publish Vault graphs or caches in Git.
+- Windows long sources are scanned/read with extended paths; long extraction staging paths use unique short aliases with original source locations and file labels restored. No source files are silently omitted. Verify path-based imports in original code because staging aliases may miss those links; this does not fix host dependency-installation path limits.
 - Failure, stale output, missing dependency or busy lock: continue original source search and tests. Do not add approval gates or deny code edits.
 - Read JSON `success` and `errors`, not just exit status. Check `indexed_at`, source fingerprint, graph hash and original source locations. Graph success is not test success.
 - Preserve `.graphify-owner.json` with the Vault for same-destination reinstall. Never delete/edit the ledger to bypass ownership conflicts. A manual edit to generated output fails closed; authored Architecture/Reuse is preserved.
