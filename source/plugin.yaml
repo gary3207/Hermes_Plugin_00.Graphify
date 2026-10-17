@@ -3,7 +3,7 @@ api_version: 1
 name: graphify-context
 version: 0.2.0
 description: Portable Graphify code reuse and impact context; current Profile only.
-author: Gary-Y-Lee
+author: gary3207
 license: MIT
 kind: standalone
 provides_tools: []

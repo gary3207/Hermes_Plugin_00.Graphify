@@ -23,7 +23,7 @@ may be sensitive: keep the Vault and generated graphs private.
 
 ## Native install from private GitHub
 
-Repository: `Gary-Y-Lee/Hermes_Plugin_00.Graphify` (**PRIVATE**).
+Repository: `gary3207/Hermes_Plugin_00.Graphify` (**PRIVATE**).
 Private access requires an authorized GitHub account and explicit login/consent
 through your local Git credential manager or GitHub CLI. Authenticate outside chat;
 never paste passwords or tokens into commands, this README, or the package.
@@ -34,7 +34,7 @@ reviewed publication commit. Do not use a branch name, abbreviated SHA, or the
 literal placeholder. From the intended active Hermes Profile:
 
 ```text
-hermes plugins install Gary-Y-Lee/Hermes_Plugin_00.Graphify/source --ref <40-character-commit-SHA> --no-enable
+hermes plugins install gary3207/Hermes_Plugin_00.Graphify/source --ref <40-character-commit-SHA> --no-enable
 hermes plugins enable graphify-context --no-allow-tool-override
 hermes graphify setup --vault "C:/Notes/MyVault" --folder "Graphify"
 hermes graphify status
@@ -141,7 +141,7 @@ Actual native installation smoke checks, in disposable Hermes homes:
 
 ```text
 python source/verify_install.py --package "<extracted-package-root>"
-python source/verify_install.py --package "<source-checkout-root>" --repository Gary-Y-Lee/Hermes_Plugin_00.Graphify/source --ref <40-character-commit-SHA>
+python source/verify_install.py --package "<source-checkout-root>" --repository gary3207/Hermes_Plugin_00.Graphify/source --ref <40-character-commit-SHA>
 ```
 
 The Git mode requires authenticated private repository access. These checks cover
