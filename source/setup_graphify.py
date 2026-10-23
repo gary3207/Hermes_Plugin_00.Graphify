@@ -84,7 +84,11 @@ def configured(ctx, home=None):
     folder = ctx.get_config('graphify_folder', '')
     if not vault or not folder:
         raise ValueError('GRAPHIFY_NOT_CONFIGURED')
-    return configuration(destination(vault, folder), home or active_home())
+    cfg = configuration(destination(vault, folder), home or active_home())
+    cfg.update(extract_timeout_seconds=ctx.get_config('extract_timeout_seconds', 300),
+               project_extract_timeout_seconds=ctx.get_config('project_extract_timeout_seconds', {}),
+               source_exclusions=ctx.get_config('source_exclusions', {}))
+    return cfg
 
 
 def status(ctx, home=None):

@@ -1,7 +1,7 @@
 ---
 name: graphify-context
 description: Use when changing code. Find reuse and impact first.
-version: 0.2.0
+version: 0.2.1
 license: MIT
 platforms: [windows]
 ---
@@ -35,5 +35,9 @@ This Plugin is current-Profile-only. No scheduler, watcher, automatic Profile de
 - Windows long sources are scanned/read with extended paths; long extraction staging paths use unique short aliases with original source locations and file labels restored. No source files are silently omitted. Verify path-based imports in original code because staging aliases may miss those links; this does not fix host dependency-installation path limits.
 - Failure, stale output, missing dependency or busy lock: continue original source search and tests. Do not add approval gates or deny code edits.
 - Read JSON `success` and `errors`, not just exit status. Check `indexed_at`, source fingerprint, graph hash and original source locations. Graph success is not test success.
+- Optional current-Profile settings are `extract_timeout_seconds` (positive integer; default300), `project_extract_timeout_seconds` and `source_exclusions` (exact project-ID mappings). Follow README configuration instructions; do not copy another machine's personal IDs or generated-directory rules.
+- Confirm a generated copy's producer before narrowing coverage. Keep maintained tests/worktrees and verify retained paths match extracted sources. Source exclusions never imply permission to delete files.
+- Each project/global output is checked against the native512MiB UTF-8 read limit before publication. A rejected output retains its last graph; project/global writes are separate, so inspect the complete errors and an actual global query. Longer timeouts or splitting then recombining do not resolve final-size limits.
+- Use `error_details` and new metadata `extract_seconds`, `extract_timeout_seconds`, `graph_bytes` to distinguish timeout, size and source-change failures without persisting raw extractor output. Discovery-only success never proves current source freshness.
 - Preserve `.graphify-owner.json` with the Vault for same-destination reinstall. Never delete/edit the ledger to bypass ownership conflicts. A manual edit to generated output fails closed; authored Architecture/Reuse is preserved.
 - Same-machine multiple manually installed Profiles can reference one destination. Multi-PC concurrent writing through cloud sync is not supported; use one writer or separate output folders.

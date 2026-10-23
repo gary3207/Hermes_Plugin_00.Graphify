@@ -8,7 +8,8 @@ ALLOWLIST = (
     'README.md', 'LICENSE', '.gitignore', '.gitattributes',
     'source/plugin.yaml', 'source/__init__.py', 'source/setup_graphify.py',
     'source/bootstrap.py', 'source/verify_install.py', 'source/graphify_ops.py', 'source/test_plugin.py',
-    'source/test_graphify_ops.py', 'source/build_package.py',
+    'source/test_graphify_ops.py', 'source/test_source_exclusions.py',
+    'source/test_sync_safety.py', 'source/build_package.py',
     'source/test_build_package.py', 'source/skills/graphify-context/SKILL.md',
     'source/skills/setup/SKILL.md',
 )

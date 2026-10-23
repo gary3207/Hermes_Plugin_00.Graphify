@@ -1,4 +1,4 @@
-"""Actual local/ZIP or pinned-private-Git install smoke check; isolated home only."""
+"""Actual local/ZIP or pinned Git install smoke check; isolated home only."""
 import argparse
 import hashlib
 import json
@@ -15,7 +15,7 @@ from bootstrap import hermes_command, PAYLOAD
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--package', type=Path, default=Path(__file__).resolve().parent.parent)
-    parser.add_argument('--repository', help='Private GitHub owner/repo/source; requires authenticated Git')
+    parser.add_argument('--repository', help='GitHub owner/repo/source; private repositories require authenticated Git')
     parser.add_argument('--ref', help='Exact reviewed 40-character SHA for Git mode')
     parser.add_argument('--work-root', type=Path,
                         help='Short fixture folder under project source; avoids deep Windows runtime paths')
@@ -72,6 +72,8 @@ def main():
         assert '[[Nested/Graphify/' in index.read_text(encoding='utf-8')
         assert json.loads(hermes_command(['graphify', 'setup'], home, setup_env))['success']
         assert index.stat().st_mtime_ns == stamp
+        hermes_command(['config', 'set',
+                        'plugins.entries.graphify-context.settings.extract_timeout_seconds', '450'], home)
         (project / 'source').mkdir(parents=True)
         (project / 'source/example.py').write_text('def normalize(x):\n    return x.strip()\n\ndef greeting(x):\n    return normalize(x)\n', encoding='utf-8')
         # Batch launchers must fail safely before interpreting arbitrary project paths.
@@ -93,6 +95,11 @@ def main():
         project_graph = next(graph_root.glob('Projects/*/graphify-out/graph.json'))
         graph = json.loads(project_graph.read_text(encoding='utf-8'))
         assert graph['input_tokens'] == 0 and graph['output_tokens'] == 0
+        manifest = json.loads((graph_root / 'Global/manifest.json').read_text(encoding='utf-8'))
+        metadata = next(p for p in manifest['projects'] if Path(p['path']) == project)
+        assert metadata['extract_timeout_seconds'] == 450
+        assert metadata['extract_seconds'] >= 0
+        assert metadata['graph_bytes'] == project_graph.stat().st_size
         note = next(graph_root.glob('Projects/*/10_Architecture.md'))
         note.write_text('human verified architecture', encoding='utf-8')
         again = json.loads(hermes_command(['graphify', 'sync', '--project', str(project)], home))
@@ -104,11 +111,13 @@ def main():
         assert str(graph_root / '00_Index.md') in health['startup_guidance']
         assert health['automatic_profile_deployment'] is False and health['scheduler'] is False
         assert other.read_bytes() == other_before and not (other.parent / 'plugins').exists()
-        print(json.dumps({'success': True, 'mode': 'private-git' if args.repository else 'local-package',
+        print(json.dumps({'success': True, 'mode': 'git' if args.repository else 'local-package',
                           'ref': args.ref, 'payload_files_verified': len(PAYLOAD),
                           'native_doctor': True, 'bundled_skill_payloads_verified': True,
                           'metacharacter_project_safe': True,
                           'configuration_guidance_readback': True,
+                          'sync_safety_metadata_verified': True,
+                          'configured_extract_timeout_seconds': metadata['extract_timeout_seconds'],
                           'repeat_setup': True, 'actual_extract_query_explain_affected': True,
                           'llm_tokens': 0, 'unchanged_sync': True, 'authored_note_preserved': True,
                           'other_profile_unchanged': True, 'fresh_os_verified': False,

@@ -32,6 +32,32 @@ class Context:
 
 
 class PluginTests(unittest.TestCase):
+    def test_configured_forwards_profile_local_sync_controls_without_writes(self):
+        service = self.service()
+        work = Path(__file__).parent / 'test-work'
+        work.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=work) as tmp:
+            root = Path(tmp)
+            vault = root / 'vault'
+            vault.mkdir()
+            ctx = Context()
+            controls = {'extract_timeout_seconds': 450,
+                        'project_extract_timeout_seconds': {'fixture': 600},
+                        'source_exclusions': {'fixture': ['generated/temporary-*']}}
+            ctx.values.update(vault_path=str(vault), graphify_folder='Graphify', **controls)
+            before = dict(ctx.values)
+            cfg = service.configured(ctx, home=root / 'home')
+            self.assertEqual({key: cfg.get(key) for key in controls}, controls)
+            self.assertEqual(ctx.values, before)
+            self.assertFalse((vault / 'Graphify').exists())
+            self.assertFalse((root / 'home').exists())
+            for key in controls:
+                ctx.values.pop(key)
+            cfg = service.configured(ctx, home=root / 'home')
+            self.assertEqual(cfg['extract_timeout_seconds'], 300)
+            self.assertEqual(cfg['project_extract_timeout_seconds'], {})
+            self.assertEqual(cfg['source_exclusions'], {})
+
     def test_direct_config_destination_change_requires_migration(self):
         service = self.service()
         work = Path(__file__).parent / 'test-work'

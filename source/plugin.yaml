@@ -1,7 +1,7 @@
 manifest_version: 2
 api_version: 1
 name: graphify-context
-version: 0.2.0
+version: 0.2.1
 description: Portable Graphify code reuse and impact context; current Profile only.
 author: gary3207
 license: MIT
@@ -17,3 +17,15 @@ config_schema:
   graphify_folder:
     type: str
     description: Safe Vault-relative Graphify folder, for example AgentData/Graphify.
+  extract_timeout_seconds:
+    type: int
+    default: 300
+    description: Positive native extraction timeout in seconds; not a whole-sync timeout.
+  project_extract_timeout_seconds:
+    type: dict
+    default: {}
+    description: Optional exact project ID to positive extraction timeout mapping.
+  source_exclusions:
+    type: dict
+    default: {}
+    description: Optional exact project ID to source-relative generated-directory patterns; never deletes files.

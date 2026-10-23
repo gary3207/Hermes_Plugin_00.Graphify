@@ -1,6 +1,6 @@
 # Hermes_Plugin_00.Graphify
 
-Private distribution of the `graphify-context` Hermes plugin, version **0.2.0**.
+Source distribution of the `graphify-context` Hermes plugin, version **0.2.1**.
 It connects project code graphs and a namespace-preserving global graph to an
 Obsidian Vault. Obsidian does not need to be running. The initial source boundary
 is each project's `source/` directory; arbitrary `src/` or `lib/` layouts are not
@@ -21,12 +21,12 @@ or Hermes Core/Desktop/Gateway source modification. Graphs are advisory caches,
 not a requirement to permit editing code. Graph labels and absolute source paths
 may be sensitive: keep the Vault and generated graphs private.
 
-## Native install from private GitHub
+## Native install from GitHub
 
-Repository: `gary3207/Hermes_Plugin_00.Graphify` (**PRIVATE**).
-Private access requires an authorized GitHub account and explicit login/consent
-through your local Git credential manager or GitHub CLI. Authenticate outside chat;
-never paste passwords or tokens into commands, this README, or the package.
+Repository: `gary3207/Hermes_Plugin_00.Graphify` (**PUBLIC**).
+The public source does not require private-repository credentials. If installing
+from a private fork, authenticate outside chat through your local Git credential
+manager or GitHub CLI; never paste passwords or tokens into commands or the package.
 No credentials or authentication state are bundled.
 
 Replace `<40-character-commit-SHA>` with the full immutable SHA supplied for the
@@ -121,14 +121,61 @@ in arguments to Windows `.CMD`/`.BAT` launchers (`UNSAFE_BATCH_ARGUMENT`). Such
 project paths are not supported through that launcher; quoting or spaces alone do
 not make them safe. Native non-batch launchers keep literal argument forwarding.
 
+## Bounded sync controls
+
+The default native extraction timeout is **300 seconds per changed project**.
+It is not a timeout for the whole sync. Optional settings live under the current
+Profile's `plugins.entries.graphify-context.settings`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `extract_timeout_seconds` | `300` | Positive integer extraction timeout in seconds |
+| `project_extract_timeout_seconds` | `{}` | Exact project ID to positive timeout mapping; overrides the default |
+| `source_exclusions` | `{}` | Exact project ID to a list of `source/`-relative generated-directory patterns |
+
+For example, use the supported configuration command in the intended Profile:
+
+```text
+hermes config set plugins.entries.graphify-context.settings.extract_timeout_seconds 600
+```
+
+Read project IDs from the configured index/project notes. Exclusions are opt-in:
+confirm the producer of a generated copy before adding a directory pattern. Keep
+maintained source, tests and worktrees; a Git ignore rule alone is not evidence
+that code should be omitted. Exclusions do not delete files and do not apply to
+another project unless explicitly configured. Each project's rules must be a list
+of strings, not a single string or mapping; malformed rules fail with
+`INVALID_SOURCE_EXCLUSIONS` before scanning or replacing any project graph.
+No personal IDs or exclusion policy
+are shipped as defaults. For a standalone operator config, the same three keys
+are top-level values in the user-owned JSON passed with `--config`.
+
+Newly extracted project metadata records `extract_timeout_seconds`, actual
+`extract_seconds` and UTF-8 `graph_bytes`. Unchanged projects keep their previous
+metadata without re-extraction. Timeout changes do not make extraction faster.
+
+Before publishing either a project graph or the merged global graph, the operator
+checks Graphify 0.9.77's default **536,870,912-byte (512-MiB)** reader limit. An
+oversized result raises `GRAPH_TOO_LARGE` and retains that output's previous graph
+and metadata. Project and global publication are separate, not one transaction:
+check the entire result's `errors` and actual global queries before claiming full
+sync success. Increasing a timeout does not fix an oversized final graph; this
+release does not add sharding or silently raise the reader limit.
+
+`error_details` distinguishes `EXTRACTION_TIMEOUT`, `GRAPH_TOO_LARGE` and
+`SOURCE_CHANGED_DURING_EXTRACTION` using fixed codes and numeric context. It does
+not persist raw exception arguments or extractor output. The existing source-change
+and ownership protections remain in effect. `discover` does not scan current source,
+so its success alone cannot establish source freshness.
+
 ## Regression checks and maintainer packaging
 
 From the complete source checkout or extracted distribution:
 
 ```text
-python -B source/test_build_package.py -v
-python -B source/test_plugin.py -v
-python -B source/test_graphify_ops.py -v
+cd source
+python -B -m unittest test_graphify_ops test_plugin test_build_package test_source_exclusions test_sync_safety -v
+cd ..
 ```
 
 Tests are stdlib `unittest`; fixture data is created under `source/`. Packaging tests
@@ -144,7 +191,7 @@ python source/verify_install.py --package "<extracted-package-root>"
 python source/verify_install.py --package "<source-checkout-root>" --repository gary3207/Hermes_Plugin_00.Graphify/source --ref <40-character-commit-SHA>
 ```
 
-The Git mode requires authenticated private repository access. These checks cover
+The Git mode uses the repository's existing access requirements. These checks cover
 native Plugin Doctor, exact payload bytes, repeat setup, actual extract/query/explain/
 affected, zero LLM extraction tokens, preserved authored notes and unchanged other
 Profile files. The verifier uses no model credentials or live Vault. `hermes skills
@@ -182,7 +229,7 @@ Personal `graphify-config.json`, legacy `source/profile`, schedulers,
 credentials are excluded. **Allowlisting is not a secret scanner**: review the
 contents of the allowlisted code/tests/docs before committing or releasing.
 The builder performs no commit, push, GitHub repository creation, permission change,
-installation or live-environment mutation. Private publication and commit-SHA
+installation or live-environment mutation. Publication and commit-SHA
 selection are separate authorized maintainer steps.
 
 ## License

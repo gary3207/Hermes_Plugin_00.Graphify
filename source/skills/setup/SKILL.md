@@ -1,7 +1,7 @@
 ---
 name: setup
 description: Use when installing Graphify. Configure Vault and folder safely.
-version: 0.2.0
+version: 0.2.1
 license: MIT
 platforms: [windows]
 ---
@@ -12,7 +12,7 @@ platforms: [windows]
 
 Ask only for an existing absolute Obsidian Vault path and the Graphify folder relative to that Vault, e.g. `AgentData/Graphify`. Discover Hermes/Python/Graphify runtime paths. Installation affects the intended current Profile only; no other/future Profile deployment, scheduler, watcher or Core modifications.
 
-The private repository is `gary3207/Hermes_Plugin_00.Graphify`. The user or collaborator needs repository access and authenticated GitHub/Git; installation does not restore authentication, project source code or private Vault history. Never obtain a token/password in chat or include authentication in config or commands.
+The public repository is `gary3207/Hermes_Plugin_00.Graphify`. Private forks require their own authorized access; installation does not restore authentication, project source code or private Vault history. Never obtain a token/password in chat or include authentication in config or commands.
 
 ## Native Git installation
 

@@ -1,10 +1,20 @@
 """Local Graphify operations. Generated graphs are caches, never edit gates."""
 from pathlib import Path
+from fnmatch import fnmatchcase
 import hashlib
 import os
 
 SKIP_DIRS = {'.git', '.venv', 'venv', 'node_modules', 'vendor', '__pycache__',
              '.graphify-cache', 'test-work', 'runtime', 'cache', 'dist', 'build'}
+# Native Graphify 0.9.77's default reader limit, not an extraction target.
+MAX_GRAPH_BYTES = 536_870_912
+
+
+class GraphTooLargeError(ValueError):
+    def __init__(self, size_bytes):
+        super().__init__('GRAPH_TOO_LARGE')
+        self.size_bytes = size_bytes
+        self.limit_bytes = MAX_GRAPH_BYTES
 
 
 def io_path(path):
@@ -19,7 +29,9 @@ def io_path(path):
                 else '\\\\?\\' + absolute)
 
 
-def source_files(root, extensions):
+def source_files(root, extensions, exclude_dirs=()):
+    if not isinstance(exclude_dirs, (list, tuple)) or any(not isinstance(rule, str) for rule in exclude_dirs):
+        raise ValueError('INVALID_SOURCE_EXCLUSIONS')
     source = io_path(Path(root) / 'source')
     files = {}
 
@@ -41,7 +53,10 @@ def source_files(root, extensions):
         raise OSError('Source scan incomplete; previous graph retained') from None
 
     for parent, dirs, names in os.walk(source, followlinks=False, onerror=scan_error):
-        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and contained(Path(parent) / d))
+        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS
+                         and not any(fnmatchcase((Path(parent) / d).relative_to(source).as_posix(), rule)
+                                     for rule in exclude_dirs)
+                         and contained(Path(parent) / d))
         for name in sorted(names):
             p = Path(parent) / name
             if name.startswith('.env') or name.lower() in {'auth.json', 'credentials.json', 'secrets.json'}:
@@ -206,6 +221,28 @@ def packed(value):
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + '\n'
 
 
+def graph_payload(graph):
+    data = packed(graph).encode('utf-8')
+    if len(data) > MAX_GRAPH_BYTES:
+        raise GraphTooLargeError(len(data))
+    return data
+
+
+def failure_details(exc):
+    # Fixed metadata only; extractor output and exception arguments can contain secrets.
+    details: dict = {'error_type': type(exc).__name__}
+    if isinstance(exc, GraphTooLargeError):
+        details.update(error_code='GRAPH_TOO_LARGE', size_bytes=exc.size_bytes,
+                       limit_bytes=exc.limit_bytes)
+    elif isinstance(exc, subprocess.TimeoutExpired):
+        details.update(error_code='EXTRACTION_TIMEOUT', timeout_seconds=exc.timeout)
+    elif str(exc) == 'Source changed during extraction; previous graph retained':
+        details['error_code'] = 'SOURCE_CHANGED_DURING_EXTRACTION'
+    elif str(exc) in {'INVALID_EXTRACT_TIMEOUT_SECONDS', 'INVALID_SOURCE_EXCLUSIONS'}:
+        details['error_code'] = str(exc)
+    return details
+
+
 def load(path, default):
     return json.loads(Path(path).read_text(encoding='utf-8-sig')) if Path(path).exists() else default
 
@@ -289,7 +326,12 @@ def rebuild(cfg, project, previous, version):
     root = Path(project['path'])
     if not root.is_dir():
         raise FileNotFoundError('Project root not available')
-    files = source_files(root, set(cfg['extensions']))
+    timeout = cfg.get('project_extract_timeout_seconds', {}).get(
+        project['id'], cfg.get('extract_timeout_seconds', 300))
+    if type(timeout) is not int or timeout <= 0:
+        raise ValueError('INVALID_EXTRACT_TIMEOUT_SECONDS')
+    exclude_dirs = cfg.get('source_exclusions', {}).get(project['id'], ())
+    files = source_files(root, set(cfg['extensions']), exclude_dirs)
     source_present = (root / 'source').is_dir()
     if not source_present and (previous.get('files', 0)
                                or previous.get('source_present', 'fingerprint' in previous)):
@@ -303,6 +345,7 @@ def rebuild(cfg, project, previous, version):
             return {**previous, 'status': 'current'}, False
     cache.mkdir(parents=True, exist_ok=True)
     graph = {'nodes': [], 'edges': [], 'hyperedges': [], 'input_tokens': 0, 'output_tokens': 0}
+    extract_seconds = 0
     if files:
         # ponytail: rebuild only the changed project; native file-incremental staging if project size becomes a bottleneck.
         with tempfile.TemporaryDirectory(prefix='build-', dir=cache) as tmp:
@@ -323,8 +366,10 @@ def rebuild(cfg, project, previous, version):
                 target = staging / staged
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, target)
+            started = time.perf_counter()
             command([cfg['graphify'], 'extract', staging, '--out', Path(tmp) / 'output',
-                     '--code-only', '--no-cluster', '--no-dedup', '--max-workers', '1'], timeout=300)
+                     '--code-only', '--no-cluster', '--no-dedup', '--max-workers', '1'], timeout=timeout)
+            extract_seconds = round(time.perf_counter() - started, 3)
             graph = load(Path(tmp) / 'output/graphify-out/graph.json', None)
             if not isinstance(graph, dict) or 'nodes' not in graph:
                 raise ValueError('Extractor did not produce a valid graph')
@@ -340,7 +385,7 @@ def rebuild(cfg, project, previous, version):
                     elif source in aliases and item.get('label') == Path(source).name:
                         item['label'] = Path(aliases[source]).name
             graph['extracted_sources'] = [str(path) for path in files.values()]
-    if (fingerprint(source_files(root, set(cfg['extensions']))) != current
+    if (fingerprint(source_files(root, set(cfg['extensions']), exclude_dirs)) != current
             or (source_present and not (root / 'source').is_dir())):
         raise RuntimeError('Source changed during extraction; previous graph retained')
     # Raw AST output names external imports without creating their nodes. Preserve those
@@ -354,16 +399,18 @@ def rebuild(cfg, project, previous, version):
                 ids.add(endpoint)
     # Catch dangling endpoints before publishing either per-project or global state.
     merge_graphs([project], {project['id']: graph})
-    text = packed(graph)
-    vault_publish(cfg, destination, text)
-    publish(cache / 'graphify-out/graph.json', text)
+    data = graph_payload(graph)
+    vault_publish(cfg, destination, data)
+    publish(cache / 'graphify-out/graph.json', data)
     try:
         git_head = command(['git', '-C', root, 'rev-parse', 'HEAD']).strip()
         dirty = bool(command(['git', '-C', root, 'status', '--porcelain']).strip())
     except (OSError, RuntimeError):
         git_head, dirty = None, None
-    meta = {'fingerprint': current, 'version': version, 'graph_hash': hashlib.sha256(text.encode()).hexdigest(),
+    meta = {'fingerprint': current, 'version': version, 'graph_hash': hashlib.sha256(data).hexdigest(),
             'files': len(files), 'source_present': source_present,
+            'extract_timeout_seconds': timeout, 'extract_seconds': extract_seconds,
+            'graph_bytes': len(data),
             'nodes': len(graph['nodes']), 'edges': len(graph.get('edges', graph.get('links', []))),
             'indexed_at': datetime.now(timezone.utc).isoformat(), 'git_head': git_head, 'dirty': dirty,
             'status': 'current', 'graph': str(destination), 'cache': str(cache)}
@@ -409,9 +456,11 @@ def global_graph(cfg, projects, state):
             graphs[project['id']] = json.loads(data.decode('utf-8-sig'))
     merged = merge_graphs(projects, graphs)
     target = Path(cfg['vault']) / 'Global/graphify-out/graph.json'
-    changed = vault_publish(cfg, target, packed(merged))
+    data = graph_payload(merged)
+    changed = vault_publish(cfg, target, data)
     counts = {'projects': len(projects), 'nodes': len(merged['nodes']), 'edges': len(merged['links']),
-              'indexed_projects': len(graphs), 'nonempty_projects': sum(bool(g.get('nodes')) for g in graphs.values())}
+              'indexed_projects': len(graphs), 'nonempty_projects': sum(bool(g.get('nodes')) for g in graphs.values()),
+              'graph_bytes': len(data)}
     manifest = {**counts, 'graph_hash': hashlib.sha256(target.read_bytes()).hexdigest(),
                 'projects': [{**p, **state.get('projects', {}).get(p['id'], {})} for p in projects],
                 'cross_project_policy': 'namespace-preserved union; same names do not imply dependency'}
@@ -478,6 +527,7 @@ def run(cfg, discovery_only=False, selected=None, provision=False):
                 state['projects'][project['id']] = {**previous, 'status': 'stale' if previous else 'not-indexed',
                                                    'error_type': type(exc).__name__}
                 result['errors'].append(project['id'] + ': ' + type(exc).__name__)
+                result.setdefault('error_details', {})[project['id']] = failure_details(exc)
     for project in projects:
         project_notes(cfg, project, state['projects'].get(project['id'], {}))
     prefix = cfg.get('link_prefix', 'Graphify')
@@ -502,6 +552,7 @@ def run(cfg, discovery_only=False, selected=None, provision=False):
         state['global_counts'] = result['global']
     except Exception as exc:
         result['errors'].append('Global graph: ' + type(exc).__name__)
+        result.setdefault('error_details', {})['Global graph'] = failure_details(exc)
         result['global'], result['global_changed'] = state.get('global_counts', {}), False
     publish(runtime / 'state.json', packed(state))
     if owner is not None:
