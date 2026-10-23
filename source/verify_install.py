@@ -74,6 +74,9 @@ def main():
         assert index.stat().st_mtime_ns == stamp
         hermes_command(['config', 'set',
                         'plugins.entries.graphify-context.settings.extract_timeout_seconds', '450'], home)
+        other_project = root / 'OtherProject'
+        (other_project / 'source').mkdir(parents=True)
+        assert json.loads(hermes_command(['graphify', 'sync', '--project', str(other_project)], home))['success']
         (project / 'source').mkdir(parents=True)
         (project / 'source/example.py').write_text('def normalize(x):\n    return x.strip()\n\ndef greeting(x):\n    return normalize(x)\n', encoding='utf-8')
         # Batch launchers must fail safely before interpreting arbitrary project paths.
@@ -92,15 +95,19 @@ def main():
         explain = json.loads(hermes_command(['graphify', 'explain', 'normalize', '--project', str(project)], home))
         affected = json.loads(hermes_command(['graphify', 'affected', 'normalize', '--project', str(project)], home))
         assert 'normalize' in explain['output'] and 'greeting' in affected['output']
-        project_graph = next(graph_root.glob('Projects/*/graphify-out/graph.json'))
+        manifest = json.loads((graph_root / 'Global/manifest.json').read_text(encoding='utf-8'))
+        assert len(manifest['projects']) >= 2
+        metadata = next(p for p in manifest['projects'] if Path(p['path']) == project)
+        project_graph = Path(metadata['graph'])
         graph = json.loads(project_graph.read_text(encoding='utf-8'))
         assert graph['input_tokens'] == 0 and graph['output_tokens'] == 0
-        manifest = json.loads((graph_root / 'Global/manifest.json').read_text(encoding='utf-8'))
-        metadata = next(p for p in manifest['projects'] if Path(p['path']) == project)
         assert metadata['extract_timeout_seconds'] == 450
         assert metadata['extract_seconds'] >= 0
-        assert metadata['graph_bytes'] == project_graph.stat().st_size
-        note = next(graph_root.glob('Projects/*/10_Architecture.md'))
+        assert metadata['graph_bytes'] == project_graph.stat().st_size, {
+            'expected_bytes': metadata['graph_bytes'], 'observed_bytes': project_graph.stat().st_size,
+            'selected_graph': project_graph.relative_to(graph_root).as_posix(),
+            'metadata_graph': Path(metadata['graph']).relative_to(graph_root).as_posix()}
+        note = project_graph.parent.parent / '10_Architecture.md'
         note.write_text('human verified architecture', encoding='utf-8')
         again = json.loads(hermes_command(['graphify', 'sync', '--project', str(project)], home))
         assert again['success'] and again['indexed'] == 0
@@ -117,6 +124,7 @@ def main():
                           'metacharacter_project_safe': True,
                           'configuration_guidance_readback': True,
                           'sync_safety_metadata_verified': True,
+                          'multiple_project_selection_verified': True,
                           'configured_extract_timeout_seconds': metadata['extract_timeout_seconds'],
                           'repeat_setup': True, 'actual_extract_query_explain_affected': True,
                           'llm_tokens': 0, 'unchanged_sync': True, 'authored_note_preserved': True,
